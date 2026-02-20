@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Review Parsed Data</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 900px; margin: 2rem auto; padding: 1rem; }
+    table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
+    td, th { border: 1px solid #ddd; padding: 0.6rem; text-align: left; vertical-align: top; }
+    th { background-color: #f5f5f5; font-weight: bold; width: 180px; }
+    input[type="text"], input[type="date"], input[type="number"], textarea {
+      width: 100%;
+      padding: 0.4rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    textarea { min-height: 120px; resize: vertical; }
+    .small { color: #666; font-size: 0.9rem; }
+    .button-group { margin-top: 2rem; display: flex; gap: 1rem; }
+    button {
+      padding: 0.8rem 2rem;
+      font-size: 1rem;
+      cursor: pointer;
+      border: none;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+    .btn-save { background-color: #28a745; color: white; }
+    .btn-save:hover { background-color: #218838; }
+    .btn-cancel {
+      background-color: #6c757d;
+      color: white;
+      text-decoration: none;
+      display: inline-block;
+      padding: 0.8rem 2rem;
+      border-radius: 4px;
+    }
+    .btn-cancel:hover { background-color: #5a6268; color: white; }
+    .info-box {
+      background-color: #e7f3ff;
+      border: 1px solid #b3d9ff;
+      border-radius: 4px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>Review Parsed Delivery Order</h1>
+  <div class="info-box">
+    <p><strong>Filename:</strong> {{ filename }}</p>
+    <p class="small">Review and edit the extracted data below, then save to the database.</p>
+  </div>
+
+  <form action="{{ url_for('save_bill') }}" method="post" id="reviewForm">
+    <table>
+      <tr><th>Field</th><th>Value</th></tr>
+      <tr>
+        <td>Delivery To</td>
+        <td><input type="text" name="delivery_to" value="{{ parsed.get('delivery_to', '') }}" placeholder="—"></td>
+      </tr>
+      <tr>
+        <td>Delivery Order No</td>
+        <td><input type="text" name="delivery_order_no" value="{{ parsed.get('delivery_order_no', '') }}" placeholder="—"></td>
+      </tr>
+      <tr>
+        <td>Date</td>
+        <td><input type="text" name="date" value="{{ parsed.get('date', '') }}" placeholder="—"></td>
+      </tr>
+      <tr>
+        <td>Description &amp; Size</td>
+        <td><textarea name="description_size" placeholder="—">{{ parsed.get('description_size', '') }}</textarea></td>
+      </tr>
+      <tr>
+        <td>Total Weight</td>
+        <td><input type="text" name="total_weight" value="{{ parsed.get('total_weight', '') }}" placeholder="—"></td>
+      </tr>
+    </table>
+
+    <div class="button-group">
+      <button type="submit" class="btn-save">Save to Database</button>
+      <a href="{{ url_for('index') }}" class="btn-cancel">Cancel</a>
+    </div>
+  </form>
+
+  <details style="margin-top: 2rem;">
+    <summary style="cursor: pointer; color: #0066cc; font-weight: bold;">Debug: View Raw Extracted Text (First 2000 chars)</summary>
+    <pre style="background: #f5f5f5; padding: 1rem; overflow-x: auto; font-size: 0.85rem; margin-top: 0.5rem; border: 1px solid #ddd;">{{ raw_text_preview }}</pre>
+  </details>
+
+</body>
+</html>

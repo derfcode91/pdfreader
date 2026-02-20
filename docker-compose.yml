@@ -1,0 +1,19 @@
+services:
+  web:
+    build: .
+    image: pdfreader-web
+    container_name: pdfreader-web-2
+    ports:
+      - "5001:5000"
+    volumes:
+      - ./uploads:/app/uploads
+      - ./data:/app/data
+      - ./templates:/app/templates
+      - ./app.py:/app/app.py
+    env_file:
+      - .env
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+    restart: unless-stopped
+
