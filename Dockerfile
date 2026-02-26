@@ -1,6 +1,5 @@
-# Use Google's Docker Hub mirror if Docker Hub is blocked or slow (connection refused)
-# Fallback: use python:3.11-slim when Docker Hub is reachable
-FROM mirror.gcr.io/library/python:3.11-slim
+# Use official Python image (if Docker Hub is blocked, try: mirror.gcr.io/library/python:3.11-slim)
+FROM python:3.11-slim
 
 WORKDIR /app
 
