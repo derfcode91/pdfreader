@@ -301,6 +301,61 @@ def parse_delivery_order(text):
     return result
 
 
+def process_pdf_file(file):
+    """
+    Save PDF, extract text, parse delivery order fields.
+    Returns (session_data, filename, raw_text_preview, raw_text, error_message).
+    raw_text is up to 5000 chars for DB/session; raw_text_preview is 2000 for display/API.
+    If error_message is not None, the first four values are None.
+    """
+    filename = secure_filename(file.filename)
+    base, ext = os.path.splitext(filename)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{base}_{timestamp}{ext}"
+    path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+    file.save(path)
+    try:
+        extracted_text = extract_text_from_pdf(path)
+        if not extracted_text or len(extracted_text.strip()) == 0:
+            gemini_error = None
+            if USE_GEMINI:
+                extracted_text, gemini_error = extract_text_from_pdf_with_gemini_vision(path)
+            if not extracted_text or len(extracted_text.strip()) == 0:
+                msg = "Could not extract text from PDF. The file might be corrupted or image-based."
+                if gemini_error:
+                    msg += f" Gemini Vision: {gemini_error}"
+                elif not USE_GEMINI:
+                    msg += " For scanned PDFs, set GEMINI_API_KEY in .env and restart the app."
+                os.remove(path)
+                return (None, None, None, None, msg)
+        parsed = None
+        if USE_GEMINI:
+            try:
+                parsed = parse_delivery_order_with_gemini(extracted_text)
+            except Exception:
+                parsed = None
+        if not parsed:
+            parsed = parse_delivery_order(extracted_text)
+        session_data = {}
+        for key, value in parsed.items():
+            if value is None:
+                session_data[key] = None
+            elif isinstance(value, date):
+                session_data[key] = value.isoformat() if value else None
+            elif isinstance(value, Decimal):
+                session_data[key] = str(value)
+            else:
+                session_data[key] = value
+        return (session_data, filename, extracted_text[:2000], extracted_text[:5000], None)
+    except Exception as e:
+        if os.path.exists(path):
+            try:
+                os.remove(path)
+            except Exception:
+                pass
+        return (None, None, None, None, str(e))
+
+
 # ---------- Routes ----------
 @app.route("/", methods=["GET"])
 def index():
@@ -313,6 +368,30 @@ def _wants_json():
         request.headers.get("X-Requested-With") == "XMLHttpRequest"
         or "application/json" in (request.headers.get("Accept") or "")
     )
+
+
+@app.route("/api/extract", methods=["POST"])
+def api_extract():
+    """
+    API endpoint: upload a PDF and get extracted data as JSON only.
+    Use this in Postman to always receive a JSON payload (no HTML).
+    """
+    if "file" not in request.files:
+        return jsonify({"success": False, "message": "No file part"})
+    file = request.files["file"]
+    if file.filename == "":
+        return jsonify({"success": False, "message": "No selected file"})
+    if not allowed_file(file.filename):
+        return jsonify({"success": False, "message": "Allowed file types: pdf"})
+    session_data, filename, raw_text_preview, _raw_text, err = process_pdf_file(file)
+    if err:
+        return jsonify({"success": False, "message": err})
+    return jsonify({
+        "success": True,
+        "data": session_data,
+        "filename": filename,
+        "raw_text_preview": raw_text_preview,
+    })
 
 
 @app.route("/result", methods=["GET"])
@@ -348,108 +427,31 @@ def upload():
         if ajax:
             return jsonify({"success": False, "message": "Allowed file types: pdf"})
         return redirect(url_for("index"))
-    
-    try:
-        filename = secure_filename(file.filename)
-        # Handle duplicate filenames by adding timestamp
-        base, ext = os.path.splitext(filename)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{base}_{timestamp}{ext}"
-        path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-        file.save(path)
 
-        # Extract text (pdfplumber first; if empty, try Gemini Vision for image-based PDFs)
-        try:
-            extracted_text = extract_text_from_pdf(path)
-            if not extracted_text or len(extracted_text.strip()) == 0:
-                gemini_error = None  # set by Gemini Vision path if it runs and fails
-                if USE_GEMINI:
-                    extracted_text, gemini_error = extract_text_from_pdf_with_gemini_vision(path)
-                    if extracted_text and len(extracted_text.strip()) > 0:
-                        flash("Text extracted from image-based PDF using Gemini Vision.", "info")
-                if not extracted_text or len(extracted_text.strip()) == 0:
-                    msg = "Could not extract text from PDF. The file might be corrupted or image-based."
-                    if gemini_error:
-                        msg += f" Gemini Vision: {gemini_error}"
-                    elif not USE_GEMINI:
-                        msg += " For scanned PDFs, set GEMINI_API_KEY in .env and restart the app."
-                    flash(msg)
-                    os.remove(path)  # Clean up
-                    if ajax:
-                        return jsonify({"success": False, "message": msg})
-                    return redirect(url_for("index"))
-        except Exception as e:
-            flash(f"Error extracting text from PDF: {str(e)}")
-            if os.path.exists(path):
-                os.remove(path)  # Clean up
-            if ajax:
-                return jsonify({"success": False, "message": str(e)})
-            return redirect(url_for("index"))
-
-        # Parse fields - try Gemini API first, fallback to regex parsing
-        parsed = None
-        if USE_GEMINI:
-            try:
-                parsed = parse_delivery_order_with_gemini(extracted_text)
-                if parsed:
-                    flash("Data extracted using Gemini AI", "info")
-            except Exception as e:
-                flash(f"Gemini API error: {str(e)}. Falling back to regex parsing.", "warning")
-                parsed = None
-
-        if not parsed:
-            parsed = parse_delivery_order(extracted_text)
-            if USE_GEMINI:
-                flash("Used regex parsing (Gemini unavailable or failed)", "info")
-
-        # Store parsed data and filename in session for review before saving
-        # Convert dates and decimals to strings for JSON serialization
-        session_data = {}
-        for key, value in parsed.items():
-            if value is None:
-                session_data[key] = None
-            elif isinstance(value, date):
-                session_data[key] = value.isoformat() if value else None
-            elif isinstance(value, Decimal):
-                session_data[key] = str(value)
-            else:
-                session_data[key] = value
-        
-        session['parsed_data'] = session_data
-        session['filename'] = filename
-        # Store raw_text in session but limit size to avoid cookie size limits
-        # Flask sessions use cookies by default (max ~4KB), so we'll store a smaller preview
-        session['raw_text'] = extracted_text[:5000]  # Reduced size to avoid session cookie limits
-        session['raw_text_preview'] = extracted_text[:2000]
-
-        # Create display-friendly version for template (convert dates and decimals to strings)
-        display_parsed = {}
-        for key, value in parsed.items():
-            if value is None:
-                display_parsed[key] = ''
-            elif isinstance(value, date):
-                display_parsed[key] = value.isoformat() if value else ''
-            elif isinstance(value, Decimal):
-                display_parsed[key] = str(value)
-            else:
-                display_parsed[key] = str(value) if value else ''
-
-        # Show to user for review before saving
+    session_data, filename, raw_text_preview, raw_text, err = process_pdf_file(file)
+    if err:
+        flash(err)
         if ajax:
-            return jsonify({
-                "success": True,
-                "redirect": url_for("result_page"),
-                "data": session_data,
-                "filename": filename,
-                "raw_text_preview": extracted_text[:2000],
-            })
-        return render_template("result.html", parsed=display_parsed, filename=filename, raw_text_preview=extracted_text[:2000])
-    
-    except Exception as e:
-        flash(f"Unexpected error: {str(e)}")
-        if ajax:
-            return jsonify({"success": False, "message": str(e)})
+            return jsonify({"success": False, "message": err})
         return redirect(url_for("index"))
+
+    # Store in session for review page and optional save
+    session["parsed_data"] = session_data
+    session["filename"] = filename
+    session["raw_text"] = raw_text
+    session["raw_text_preview"] = raw_text_preview
+
+    display_parsed = {k: (v if v is not None else "") for k, v in session_data.items()}
+
+    if ajax:
+        return jsonify({
+            "success": True,
+            "redirect": url_for("result_page"),
+            "data": session_data,
+            "filename": filename,
+            "raw_text_preview": raw_text_preview,
+        })
+    return render_template("result.html", parsed=display_parsed, filename=filename, raw_text_preview=raw_text_preview)
 
 
 @app.route("/admin")
