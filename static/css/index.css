@@ -1,0 +1,93 @@
+body {
+  font-family: Arial, sans-serif;
+  max-width: 800px;
+  margin: 2rem auto;
+  padding: 1rem;
+}
+
+.card {
+  border: 1px solid #ddd;
+  padding: 1.2rem;
+  border-radius: 8px;
+}
+
+input[type=file] {
+  display: block;
+  margin-bottom: 1rem;
+}
+
+button {
+  padding: 0.6rem 1rem;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+/* Loading overlay – full page */
+.loading-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: #fff;
+  z-index: 9999;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.loading-overlay.active {
+  display: flex;
+}
+
+.loading-title {
+  font-size: 1.25rem;
+  color: #444;
+  margin: 0;
+}
+
+/* Progress bar container – thin bar */
+.progress-wrap {
+  width: 90%;
+  max-width: 420px;
+  background: #fff;
+  border-radius: 999px;
+  padding: 3px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  border: 1px solid #2563eb;
+}
+
+.progress-track {
+  height: 8px;
+  background: #bfdbfe;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  background: #2563eb;
+  border-radius: 999px;
+  transition: width 0.25s ease-out;
+}
+
+.loading-overlay .error-msg {
+  color: #b91c1c;
+  font-size: 0.95rem;
+  max-width: 90%;
+  text-align: center;
+}
+
+.loading-overlay .dismiss-btn {
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.95rem;
+}
+
+.loading-overlay .dismiss-btn:hover {
+  background: #1d4ed8;
+}

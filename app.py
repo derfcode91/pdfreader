@@ -40,7 +40,8 @@ if USE_GEMINI:
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs("data", exist_ok=True)
 
-app = Flask(__name__)
+_APP_DIR = os.path.dirname(os.path.abspath(__file__))
+app = Flask(__name__, template_folder=os.path.join(_APP_DIR, "html"))
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["MAX_CONTENT_LENGTH"] = MAX_FILE_SIZE
 app.config["TEMPLATES_AUTO_RELOAD"] = True
@@ -307,7 +308,11 @@ def index():
 
 
 def _wants_json():
-    return request.headers.get("X-Requested-With") == "XMLHttpRequest"
+    """True if client expects JSON (e.g. AJAX or Postman with Accept: application/json)."""
+    return (
+        request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        or "application/json" in (request.headers.get("Accept") or "")
+    )
 
 
 @app.route("/result", methods=["GET"])
@@ -431,7 +436,13 @@ def upload():
 
         # Show to user for review before saving
         if ajax:
-            return jsonify({"success": True, "redirect": url_for("result_page")})
+            return jsonify({
+                "success": True,
+                "redirect": url_for("result_page"),
+                "data": session_data,
+                "filename": filename,
+                "raw_text_preview": extracted_text[:2000],
+            })
         return render_template("result.html", parsed=display_parsed, filename=filename, raw_text_preview=extracted_text[:2000])
     
     except Exception as e:

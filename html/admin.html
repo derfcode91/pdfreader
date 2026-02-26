@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Admin - Delivery Orders</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+</head>
+<body>
+  <h1>Delivery Orders</h1>
+  <p><a href="{{ url_for('index') }}">Upload New Delivery Order</a></p>
+
+  {% if orders %}
+    <p><strong>Total orders: {{ orders|length }}</strong></p>
+
+    <form id="deleteForm" method="POST" action="{{ url_for('delete_bills') }}">
+      <div class="selection-controls">
+        <button type="submit" class="delete-btn" id="deleteBtn" disabled>Delete Selected (<span id="selectedCount">0</span>)</button>
+        <span class="selected-count" id="selectedText"></span>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th><input type="checkbox" class="select-all-checkbox" id="selectAll" title="Select All"></th>
+              <th>ID</th>
+              <th>Filename</th>
+              <th>Delivery To</th>
+              <th>Delivery Order No</th>
+              <th>Date</th>
+              <th>Description &amp; Size</th>
+              <th>Total Weight</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for order in orders %}
+            <tr>
+              <td><input type="checkbox" class="row-checkbox" name="order_ids" value="{{ order.id }}" title="Select this order"></td>
+              <td>{{ order.id }}</td>
+              <td>{{ order.filename }}</td>
+              <td>{{ order.delivery_to or '—' }}</td>
+              <td>{{ order.delivery_order_no or '—' }}</td>
+              <td>{{ order.date.strftime('%Y-%m-%d') if order.date else '—' }}</td>
+              <td class="desc-cell" title="{{ order.description_size or '' }}">{{ order.description_size or '—' }}</td>
+              <td>{{ "%.3f"|format(order.total_weight) if order.total_weight else '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </form>
+  {% else %}
+    <div class="empty">
+      <p>No delivery orders uploaded yet.</p>
+      <p><a href="{{ url_for('index') }}">Upload your first delivery order</a></p>
+    </div>
+  {% endif %}
+
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <ul style="color: red; margin-top: 1rem;">
+        {% for m in messages %}
+          <li>{{ m }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+
+  <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+</body>
+</html>
